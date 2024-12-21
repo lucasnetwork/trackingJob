@@ -8,8 +8,8 @@ import {
 import { createStore } from "solid-js/store";
 export interface TimerProps {
   tracking: boolean;
-  startTime: Date | null;
-  endTime: Date | null;
+  startTime: Date;
+  endTime: Date;
   timer: number;
   description: string;
   currentTime: number;
@@ -18,10 +18,13 @@ export interface TimerProps {
 
 interface TrackingContextType {
   time: TimerProps;
-  startTracking: (description?: string) => void;
+  startTracking: () => void;
   stopTracking: () => void;
-  timers: Array<Omit<TimerProps, "currentTime">>;
+  timers: Array<TrackingHistoryProps>;
+  handleDescription: (description: string) => void;
 }
+
+export type TrackingHistoryProps = Omit<TimerProps, "currentTime" | "tracking">;
 
 const TrackingContext = createContext<TrackingContextType | undefined>(
   undefined,
@@ -30,24 +33,21 @@ const TrackingContext = createContext<TrackingContextType | undefined>(
 export const TrackingProvider = (props: { children: JSX.Element }) => {
   const [time, setTime] = createStore<TimerProps>({
     tracking: false,
-    startTime: null,
-    endTime: null,
+    startTime: new Date(),
+    endTime: new Date(),
     timer: 0,
     currentTime: 0,
     description: "",
     formattedTime: "00:00:00",
   });
-  const [timers, setTimers] = createStore<
-    Array<Omit<TimerProps, "currentTime">>
-  >([]);
-  const startTracking = (description = "") => {
+  const [timers, setTimers] = createStore<Array<TrackingHistoryProps>>([]);
+  const startTracking = () => {
     if (time.tracking) {
       return;
     }
     const interterval = setInterval(() => {
       setTime("currentTime", time.currentTime + 1);
     }, 1000);
-    setTime("description", description);
     setTime("startTime", new Date());
     setTime("tracking", true);
     setTime("timer", interterval);
@@ -55,18 +55,26 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
 
   const stopTracking = () => {
     clearInterval(time.timer);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tracking, currentTime, ...rest } = time;
     setTimers([
       ...timers,
       {
-        ...time,
+        ...rest,
         endTime: new Date(
           new Date(time.startTime || 0).getTime() + time.currentTime * 1000,
         ),
       },
     ]);
     setTime("tracking", false);
-    setTime("startTime", null);
+    setTime("startTime", new Date());
+    setTime("endTime", new Date());
     setTime("currentTime", 0);
+    setTime("description", "");
+  };
+
+  const handleDescription = (description: string) => {
+    setTime("description", description);
   };
 
   createEffect(() => {
@@ -87,7 +95,13 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
 
   return (
     <TrackingContext.Provider
-      value={{ time: time, startTracking, stopTracking, timers }}
+      value={{
+        time: time,
+        startTracking,
+        stopTracking,
+        timers,
+        handleDescription,
+      }}
     >
       {props.children}
     </TrackingContext.Provider>

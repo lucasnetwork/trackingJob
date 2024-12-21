@@ -2,4 +2,12 @@
 import { render } from "solid-js/web";
 import Routes from "./routes";
 import "./App.css";
-render(() => <Routes />, document.getElementById("root") as HTMLElement);
+import { TrackingProvider } from "./contexts/Tracking";
+render(
+  () => (
+    <TrackingProvider>
+      <Routes />
+    </TrackingProvider>
+  ),
+  document.getElementById("root") as HTMLElement,
+);

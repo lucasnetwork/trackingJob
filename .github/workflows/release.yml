@@ -14,6 +14,8 @@ jobs:
     steps:
       # Checkout the repository
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Checkout code
         uses: actions/checkout@v3
           
@@ -45,6 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-release
     steps:
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Restore Node.js modules cache
@@ -74,6 +79,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Get package version

@@ -82,7 +82,7 @@ jobs:
         with:
           name: linux-build
           path: |
-                 src-tauri/release/bundle/deb/*.deb
+                 src-tauri/target/release/bundle/deb/*.deb
   release:
     needs: [build-linux]
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: |
-                src-tauri/bundle/deb/*.deb
+                src-tauri/target/release/bundle/deb/*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ env.version }}${{ github.ref_name == 'dev' && '-dev'||''  }} # Use the version from package.json as the tag name
           name: Release ${{ env.version }}${{ github.ref_name == 'dev' && '-dev'||''  }} # Use the version as the release name

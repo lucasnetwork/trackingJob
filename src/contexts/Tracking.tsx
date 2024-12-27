@@ -15,14 +15,18 @@ export interface TimerProps {
   description: string;
   currentTime: number;
   formattedTime: string;
+  id?: number;
 }
 import Database from "@tauri-apps/plugin-sql";
 
 interface TrackingContextType {
   time: TimerProps;
-  startTracking: () => void;
+  startTracking: (id?: number) => void;
   stopTracking: () => void;
-  timers: Array<TrackingHistoryProps>;
+  timers: {
+    count: number;
+    data: Array<TrackingHistoryProps>;
+  };
   handleDescription: (description: string) => void;
 }
 
@@ -48,8 +52,14 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     description: "",
     formattedTime: "00:00:00",
   });
-  const [timers, setTimers] = createStore<Array<TrackingHistoryProps>>([]);
-  const startTracking = () => {
+  const [timers, setTimers] = createStore<{
+    count: number;
+    data: Array<TrackingHistoryProps>;
+  }>({
+    count: 0,
+    data: [],
+  });
+  const startTracking = (id?: number) => {
     if (time.tracking) {
       return;
     }
@@ -59,6 +69,7 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     setTime("startTime", new Date());
     setTime("tracking", true);
     setTime("timer", interterval);
+    setTime("id", id);
   };
   onMount(async () => {
     let dbName = "sqlite:production.db";
@@ -95,27 +106,10 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
   GROUP BY history.id 
   ORDER BY history.created_at DESC`,
     );
-    console.log(
-      "query",
-      query.map(
-        ({
-          start_time,
-          end_time,
-          formatted_time,
-          tracking_history_array,
-          ...timer
-        }) => ({
-          ...timer,
-          startTime: new Date(start_time),
-          endTime: new Date(end_time),
-          formattedTime: formatted_time,
-          trackingHistory: JSON.parse(tracking_history_array),
-        }),
-      ),
-    );
 
-    setTimers(
-      query.map(({ start_time, end_time, formatted_time, ...timer }) => {
+    setTimers("count", query.length);
+    const currentTimers = query.map(
+      ({ start_time, end_time, formatted_time, ...timer }) => {
         const trackingHistory = JSON.parse(
           timer.tracking_history_array,
         ) as Array<{
@@ -141,8 +135,12 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
             }),
           ),
         };
-      }),
+      },
     );
+    setTimers("data", currentTimers);
+  });
+  createEffect(() => {
+    console.log("props.count", timers);
   });
   const stopTracking = async () => {
     clearInterval(time.timer);
@@ -160,11 +158,17 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     await db.execute("BEGIN TRANSACTION");
 
     // Insert into history table
-    const result = await db.execute(
-      "INSERT INTO history (description, formatted_time, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING id",
-      [time.description, time.formattedTime, time.startTime, endTime],
-    );
-    const historyId = result.lastInsertId;
+    let historyId: number;
+    if (time.id === undefined) {
+      const result = await db.execute(
+        "INSERT INTO history (description, formatted_time, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING id",
+        [time.description, time.formattedTime, time.startTime, endTime],
+      );
+      historyId = result.lastInsertId || 0;
+      console.log("passou aqui");
+    } else {
+      historyId = time.id;
+    }
 
     // Insert into tracking_history table
     const historyTrackingId = await db.execute(
@@ -179,26 +183,49 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     );
 
     await db.execute("COMMIT");
-    setTimers([
-      ...timers,
-      {
-        ...rest,
-        id: historyId || 0,
-        endTime: endTime,
-        tracking_history: [
-          {
-            ...rest,
-            id: historyTrackingId.lastInsertId || 0,
-            endTime: endTime,
-          },
-        ],
-      },
-    ]);
+    const newTimers = timers;
+    console.log("newTimers", newTimers);
+    if (time.id === undefined) {
+      setTimers("data", (data) => [
+        {
+          ...rest,
+          startTime: time.startTime,
+          endTime: endTime,
+          id: historyId,
+          tracking_history: [
+            {
+              ...rest,
+              startTime: time.startTime,
+              endTime: endTime,
+              id: historyTrackingId.lastInsertId || 0,
+            },
+          ],
+        },
+        ...data,
+      ]);
+    } else {
+      const index = newTimers.data.findIndex((timer) => timer.id === time.id);
+      setTimers("data", index, (data) => {
+        return {
+          ...data,
+          tracking_history: [
+            {
+              ...rest,
+              startTime: time.startTime,
+              endTime: endTime,
+              id: historyTrackingId.lastInsertId || 0,
+            },
+            ...data.tracking_history,
+          ],
+        };
+      });
+    }
     setTime("tracking", false);
     setTime("startTime", new Date());
     setTime("endTime", new Date());
     setTime("currentTime", 0);
     setTime("description", "");
+    setTime("id", undefined);
   };
 
   const handleDescription = (description: string) => {
@@ -220,17 +247,15 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
   onCleanup(() => {
     clearInterval(time.timer);
   });
-
+  const value = {
+    time: time,
+    startTracking,
+    stopTracking,
+    timers: timers,
+    handleDescription,
+  };
   return (
-    <TrackingContext.Provider
-      value={{
-        time: time,
-        startTracking,
-        stopTracking,
-        timers,
-        handleDescription,
-      }}
-    >
+    <TrackingContext.Provider value={value}>
       {props.children}
     </TrackingContext.Provider>
   );

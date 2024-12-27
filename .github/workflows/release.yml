@@ -25,7 +25,6 @@ jobs:
         with:
           path: |
             node_modules
-            dist
           key: build-node_modules
           restore-keys: |
             ${{ runner.os }}-node-
@@ -40,9 +39,6 @@ jobs:
         run: |
           pnpm install
 
-      - name: Build code
-        run: |
-          pnpm build
   build-linux:
     runs-on: ubuntu-22.04
     needs: build-and-release
@@ -66,7 +62,6 @@ jobs:
         with:
           path: |
             node_modules
-            dist
           key: build-node_modules
           restore-keys: |
             ${{ runner.os }}-node-

@@ -18,6 +18,47 @@ pub fn run() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
              );",
             kind: MigrationKind::Up
+        },
+        Migration{
+            version:2,
+            description: "create_tracking_table",
+            sql:"CREATE TABLE tracking_history (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NULL, 
+            formatted_time TEXT NULL, start_time TIMESTAMP, end_time TIMESTAMP, history_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+             );
+           ",
+            kind: MigrationKind::Up
+        },
+        Migration {
+            version: 3,
+            description: "enable_foreign_keys",
+            sql: "PRAGMA foreign_keys = ON;",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "add_foreign_key_to_tracking_table",
+            sql: "
+                PRAGMA foreign_keys=off;
+                CREATE TABLE tracking_history_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    description TEXT NULL,
+                    formatted_time TEXT NULL,
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    history_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (history_id) REFERENCES history(id) ON DELETE RESTRICT ON UPDATE CASCADE
+                );
+                INSERT INTO tracking_history_new (id, description, formatted_time, start_time, end_time, history_id, created_at, updated_at)
+                SELECT id, description, formatted_time, start_time, end_time, history_id, created_at, updated_at FROM tracking_history;
+                DROP TABLE tracking_history;
+                ALTER TABLE tracking_history_new RENAME TO tracking_history;
+                PRAGMA foreign_keys=on;
+            ",
+            kind: MigrationKind::Up,
         }
     ];
     let mut db = "sqlite:production.db";

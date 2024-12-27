@@ -80,7 +80,11 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     clearInterval(time.timer);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { tracking, currentTime, ...rest } = time;
-    const db = await Database.load("sqlite:test2.db");
+    let dbName = "sqlite:production.db";
+    if (import.meta.env.DEV) {
+      dbName = "sqlite:development.db";
+    }
+    const db = await Database.load(dbName);
 
     await db.execute(
       "INSERT into history (description, formatted_time,start_time,end_time) VALUES ($1, $2, $3,$4)",

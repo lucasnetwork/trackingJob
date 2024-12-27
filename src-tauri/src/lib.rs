@@ -20,8 +20,13 @@ pub fn run() {
             kind: MigrationKind::Up
         }
     ];
+    let mut db = "sqlite:production.db";
+    
+  if cfg!(dev) {
+    db = "sqlite:development.db";
+  }
     tauri::Builder::default()
-        .plugin(tauri_plugin_sql::Builder::default().add_migrations("sqlite:test2.db", migrations).build())
+        .plugin(tauri_plugin_sql::Builder::default().add_migrations(db, migrations).build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())

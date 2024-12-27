@@ -23,7 +23,7 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:test2.db"]
+      "preload": ["sqlite:development.db","sqlite:production.db"]
     }
   },
   "bundle": {

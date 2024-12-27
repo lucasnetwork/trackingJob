@@ -52,7 +52,7 @@ jobs:
           path: |
             node_modules
             dist
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: build-node_modules
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Set up Node.js

@@ -55,7 +55,12 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     setTime("timer", interterval);
   };
   onMount(async () => {
-    const db = await Database.load("sqlite:test2.db");
+    let dbName = "sqlite:production.db";
+    if (import.meta.env.DEV) {
+      dbName = "sqlite:development.db";
+    }
+    const db = await Database.load(dbName);
+
     const query = await db.select<
       {
         start_time: Date;

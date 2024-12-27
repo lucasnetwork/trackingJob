@@ -1,0 +1,96 @@
+name: Release Linux Program
+
+on:
+  push:
+    branches:
+      - main # Trigger workflow when pushing to the main branch
+      - dev # Trigger workflow when pushing to the main branch
+  workflow_dispatch: # Allow manual triggering of the workflow
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+          
+      - name: Cache Node.js modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            dist
+          key: build-node_modules
+          restore-keys: |
+            ${{ runner.os }}-node-
+      # Set up Node.js (if needed for your project)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          yarn
+
+      - name: Build code
+        run: |
+          npm run build
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Restore Node.js modules cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            dist
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Build program in Linux
+        run: |
+          npm run tauri build -b deb
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-build
+          path: |
+                 src-tauri/bundle/deb/*.deb
+  release:
+    needs: [build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Get package version
+        id: get_version
+        run: echo "version=$(jq -r '.version' package.json)" >> $GITHUB_ENV
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-build
+          path: src-tauri/
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: |
+                src-tauri/bundle/deb/*.deb
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ env.version }}${{ github.ref_name == 'dev' && '-dev'||''  }} # Use the version from package.json as the tag name
+          name: Release ${{ env.version }}${{ github.ref_name == 'dev' && '-dev'||''  }} # Use the version as the release name
+          body: |
+            This is the release for version ${{ env.version }}.
+          draft: false
+          prerelease: ${{ github.ref_name == 'dev' && 'true' || 'false' }}

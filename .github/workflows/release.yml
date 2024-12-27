@@ -99,7 +99,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: linux-build
-          path: src-tauri/
+          path: src-tauri/bundle/deb/*.deb
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:

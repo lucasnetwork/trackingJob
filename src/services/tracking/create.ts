@@ -1,7 +1,9 @@
 import getDB from "../../config/db";
 import { TimerProps } from "../../contexts/Tracking";
 
-const createTracking = async (tracking: TimerProps) => {
+const createTracking = async (
+  tracking: Omit<TimerProps, "tracking" | "timer">,
+) => {
   const db = await getDB();
 
   await db.execute("BEGIN TRANSACTION");

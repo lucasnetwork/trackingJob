@@ -17,8 +17,9 @@ export interface TimerProps {
   formattedTime: string;
   id?: number;
 }
-import Database from "@tauri-apps/plugin-sql";
 import { format } from "date-fns";
+import getDB from "../config/db";
+import createTracking from "../services/tracking/create";
 
 interface TimerHistory {
   dateFormated: string;
@@ -78,12 +79,7 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     setTime("id", id);
   };
   onMount(async () => {
-    let dbName = "sqlite:production.db";
-    if (import.meta.env.DEV) {
-      dbName = "sqlite:development.db";
-    }
-    const db = await Database.load(dbName);
-
+    const db = await getDB();
     const query = await db.select<
       {
         start_time: Date;
@@ -156,42 +152,11 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     clearInterval(time.timer);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { tracking, currentTime, ...rest } = time;
-    let dbName = "sqlite:production.db";
-    if (import.meta.env.DEV) {
-      dbName = "sqlite:development.db";
-    }
+
     const endTime = new Date(
       new Date(time.startTime || 0).getTime() + time.currentTime * 1000,
     );
-    const db = await Database.load(dbName);
-
-    await db.execute("BEGIN TRANSACTION");
-
-    // Insert into history table
-    let historyId: number;
-    if (time.id === undefined) {
-      const result = await db.execute(
-        "INSERT INTO history (description, formatted_time, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING id",
-        [time.description, time.formattedTime, time.startTime, endTime],
-      );
-      historyId = result.lastInsertId || 0;
-    } else {
-      historyId = time.id;
-    }
-
-    // Insert into tracking_history table
-    const historyTrackingId = await db.execute(
-      "INSERT INTO tracking_history (description, formatted_time, start_time, end_time, history_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [
-        time.description,
-        time.formattedTime,
-        time.startTime,
-        endTime,
-        historyId,
-      ],
-    );
-
-    await db.execute("COMMIT");
+    const response = await createTracking(time);
     const newTimers = timers;
     if (time.id === undefined) {
       let index: number | undefined = undefined;
@@ -200,13 +165,13 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
         ...rest,
         startTime: time.startTime,
         endTime: endTime,
-        id: historyId,
+        id: response.historyId,
         tracking_history: [
           {
             ...rest,
             startTime: time.startTime,
             endTime: endTime,
-            id: historyTrackingId.lastInsertId || 0,
+            id: response.historyTrackingId,
           },
         ],
       };
@@ -264,7 +229,7 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
                     ...rest,
                     startTime: time.startTime,
                     endTime: endTime,
-                    id: historyTrackingId.lastInsertId || 0,
+                    id: response.historyTrackingId,
                   },
                   ...timer.tracking_history,
                 ],

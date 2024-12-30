@@ -1,12 +1,13 @@
 import {
   createContext,
   createEffect,
+  createSignal,
   JSX,
   onCleanup,
   onMount,
   useContext,
 } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createStore, produce } from "solid-js/store";
 export interface TimerProps {
   tracking: boolean;
   startTime: Date;
@@ -20,6 +21,7 @@ export interface TimerProps {
 import { format } from "date-fns";
 import getDB from "../config/db";
 import createTracking from "../services/tracking/create";
+import updateTracking from "../services/tracking/update";
 
 interface TimerHistory {
   dateFormated: string;
@@ -59,6 +61,8 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     description: "",
     formattedTime: "00:00:00",
   });
+  const [timeHistoryTrackingId, setTimeHistoryTrackingId] =
+    createSignal<number>();
   const [timers, setTimers] = createStore<{
     count: number;
     data: Array<TimerHistory>;
@@ -66,18 +70,164 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     count: 0,
     data: [],
   });
-  const startTracking = (id?: number) => {
+
+  const updateListTimers = (
+    time: Omit<TimerProps, "tracking" | "timer">,
+    {
+      historyId,
+      historyTrackingId,
+    }: { historyId: number; historyTrackingId: number },
+  ) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tracking, currentTime, ...rest } = time;
+    const endTime = new Date(
+      new Date(time.startTime || 0).getTime() + time.currentTime * 1000,
+    );
+    const newTimers = timers.data;
+    const dateFormated = format(new Date(time.startTime), "dd/MM/yyyy");
+    let index: number | undefined = undefined;
+    let indexDate: number | undefined = undefined;
+
+    for (let i = 0; i < newTimers.length; i++) {
+      if (newTimers[i].dateFormated === dateFormated) {
+        index = i;
+        for (let j = 0; j < newTimers[i].data.length; j++) {
+          if (newTimers[i].data[j].id === time.id) {
+            indexDate = j;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    if (index === undefined) {
+      const newTimer = {
+        ...rest,
+        startTime: time.startTime,
+        endTime: endTime,
+        id: historyId,
+        tracking_history: [
+          {
+            ...rest,
+            startTime: time.startTime,
+            endTime: endTime,
+            id: historyTrackingId,
+          },
+        ],
+      };
+      setTimers("data", () => [
+        {
+          data: [newTimer],
+          dateFormated: dateFormated,
+        },
+        ...newTimers,
+      ]);
+      return;
+    }
+    if (indexDate === undefined) {
+      const newTimer = {
+        startTime: time.startTime,
+        endTime: endTime,
+        formattedTime: time.formattedTime,
+        description: time.description,
+        id: historyId,
+        tracking_history: [
+          {
+            formattedTime: time.formattedTime,
+            description: time.description,
+            startTime: time.startTime,
+            endTime: endTime,
+            id: historyTrackingId,
+          },
+        ],
+      };
+      setTimers("data", index, (data) => {
+        return {
+          ...data,
+          data: [newTimer, ...data.data],
+        };
+      });
+      return;
+    }
+
+    setTimers(
+      "data",
+      index,
+      produce((data) => {
+        const indexHistory = data.data[indexDate].tracking_history.findIndex(
+          (history) => history.id === historyTrackingId,
+        );
+        const trackingHistory = data.data;
+        if (indexHistory !== -1) {
+          trackingHistory[indexDate].tracking_history[indexHistory].endTime =
+            endTime;
+          trackingHistory[indexDate].tracking_history[
+            indexHistory
+          ].formattedTime = time.formattedTime;
+        } else {
+          trackingHistory[indexDate].tracking_history.push({
+            ...rest,
+            startTime: time.startTime,
+            endTime: endTime,
+            id: historyTrackingId,
+          });
+        }
+        return {
+          ...data,
+          data: trackingHistory,
+        };
+      }),
+    );
+  };
+
+  createEffect<{
+    timers: {
+      count: number;
+      data: Array<TimerHistory>;
+    };
+  }>(
+    (timers) => {
+      if (
+        time.id === undefined ||
+        timeHistoryTrackingId() === undefined ||
+        !time.tracking
+      ) {
+        return timers;
+      }
+      updateListTimers(time, {
+        historyId: time.id || 0,
+        historyTrackingId: timeHistoryTrackingId() || 0,
+      });
+      return timers;
+    },
+    { timers },
+  );
+
+  const startTracking = async (id?: number) => {
     if (time.tracking) {
       return;
     }
     const interterval = setInterval(() => {
       setTime("currentTime", time.currentTime + 1);
     }, 1000);
-    setTime("startTime", new Date());
+    const startTime = new Date();
+    setTime("startTime", startTime);
     setTime("tracking", true);
     setTime("timer", interterval);
     setTime("id", id);
+    const newTimer = {
+      id,
+      currentTime: 0,
+      description: time.description,
+      startTime,
+      formattedTime: "00:00:00",
+      endTime: new Date(),
+    };
+    const response = await createTracking(newTimer);
+    setTimeHistoryTrackingId(response.historyTrackingId);
+    setTime("id", response.historyId);
   };
+
   onMount(async () => {
     const db = await getDB();
     const query = await db.select<
@@ -148,98 +298,25 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
     });
     setTimers("data", Object.values(currentTimers));
   });
+
   const stopTracking = async () => {
     clearInterval(time.timer);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { tracking, currentTime, ...rest } = time;
-
-    const endTime = new Date(
-      new Date(time.startTime || 0).getTime() + time.currentTime * 1000,
-    );
-    const response = await createTracking(time);
-    const newTimers = timers;
-    if (time.id === undefined) {
-      let index: number | undefined = undefined;
-      const dateFormated = format(new Date(time.startTime), "dd/MM/yyyy");
-      const newTimer = {
-        ...rest,
-        startTime: time.startTime,
-        endTime: endTime,
-        id: response.historyId,
-        tracking_history: [
-          {
-            ...rest,
-            startTime: time.startTime,
-            endTime: endTime,
-            id: response.historyTrackingId,
-          },
-        ],
-      };
-      for (let i = 0; i < newTimers.data.length; i++) {
-        if (newTimers.data[i].dateFormated === dateFormated) {
-          index = i;
-          break;
-        }
-      }
-      if (index === undefined) {
-        setTimers("data", (data) => [
-          {
-            data: [newTimer],
-            dateFormated: dateFormated,
-          },
-          ...data,
-        ]);
-      } else {
-        setTimers("data", index, (data) => {
-          return {
-            ...data,
-            data: [newTimer, ...data.data],
-          };
-        });
-      }
-    } else {
-      const dateFormated = format(new Date(time.startTime), "dd/MM/yyyy");
-      let index: number | undefined = undefined;
-      let indexDate: number | undefined = undefined;
-
-      for (let i = 0; i < newTimers.data.length; i++) {
-        if (newTimers.data[i].dateFormated === dateFormated) {
-          index = i;
-          for (let j = 0; j < newTimers.data[i].data.length; j++) {
-            if (newTimers.data[i].data[j].id === time.id) {
-              indexDate = j;
-              break;
-            }
-          }
-          break;
-        }
-      }
-      if (index === undefined || indexDate === undefined) {
-        return;
-      }
-      setTimers("data", index, (data) => {
-        return {
-          ...data,
-          data: data.data.map((timer, i) => {
-            if (i === indexDate) {
-              return {
-                ...timer,
-                tracking_history: [
-                  {
-                    ...rest,
-                    startTime: time.startTime,
-                    endTime: endTime,
-                    id: response.historyTrackingId,
-                  },
-                  ...timer.tracking_history,
-                ],
-              };
-            }
-            return timer;
-          }),
-        };
-      });
+    const historyId = timeHistoryTrackingId();
+    if (!historyId) {
+      return;
     }
+
+    await updateTracking(
+      time.startTime,
+      time.currentTime,
+      time.formattedTime,
+      historyId,
+    );
+    updateListTimers(time, {
+      historyId: time.id || 0,
+      historyTrackingId: historyId,
+    });
+    setTimeHistoryTrackingId(undefined);
     setTime("tracking", false);
     setTime("startTime", new Date());
     setTime("endTime", new Date());
@@ -261,6 +338,23 @@ export const TrackingProvider = (props: { children: JSX.Element }) => {
       `${hours.toString().padStart(2, "0")}:${minutes
         .toString()
         .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`,
+    );
+  });
+
+  createEffect(async () => {
+    const historyTrackingId = timeHistoryTrackingId();
+    if (!time.tracking || historyTrackingId === undefined) {
+      return;
+    }
+    const verifyIfTimeIsDivisibleBy30 = time.currentTime % 30 === 0;
+    if (!verifyIfTimeIsDivisibleBy30 || time.currentTime === 0) {
+      return;
+    }
+    await updateTracking(
+      time.startTime,
+      time.currentTime,
+      time.formattedTime,
+      historyTrackingId,
     );
   });
 

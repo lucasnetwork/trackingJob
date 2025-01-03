@@ -4,7 +4,7 @@ import {
   useTrackingProvider,
 } from "../../contexts/Tracking";
 import { BsPlay, BsStop } from "solid-icons/bs";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { RiArrowsArrowDownSFill } from "solid-icons/ri";
 interface DTO extends Omit<TrackingHistoryProps, "timer"> {
   tracking?: boolean;
@@ -22,6 +22,19 @@ const TrackingHistory = (props: DTO) => {
     setEndDateFormat(format(props.endTime, "HH:mm"));
   });
 
+  const totalTime = createMemo(() => {
+    const totalTime =
+      props.tracking_history.reduce((acc, curr) => {
+        return acc + (curr.endTime.getTime() - curr.startTime.getTime());
+      }, 0) / 1000;
+    const hours = Math.floor(totalTime / 3600);
+    const minutes = Math.floor((totalTime % 3600) / 60);
+    const seconds = totalTime % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  });
+
   return (
     <div>
       <div
@@ -32,9 +45,7 @@ const TrackingHistory = (props: DTO) => {
           <p class="border-dashed px-2 border-black border-l- border-r">
             {startDateFormated}-{endDateFormated()}
           </p>
-          <p class="border-dashed px-2 border-black border-r">
-            {props.formattedTime}
-          </p>
+          <p class="border-dashed px-2 border-black border-r">{totalTime()}</p>
         </div>
         <Show
           when={props.tracking}

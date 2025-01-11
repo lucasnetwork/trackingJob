@@ -25,6 +25,7 @@ const Home = () => {
                       <TrackingHistory
                         description={timer.description}
                         endTime={timer.endTime}
+                        tracking={timer.id === props.time.id}
                         id={timer.id}
                         formattedTime={timer.formattedTime}
                         startTime={timer.startTime}

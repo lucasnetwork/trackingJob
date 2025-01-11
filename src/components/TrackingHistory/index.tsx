@@ -12,15 +12,8 @@ interface DTO extends Omit<TrackingHistoryProps, "timer"> {
 
 const TrackingHistory = (props: DTO) => {
   const { startTracking, stopTracking } = useTrackingProvider();
-  const startDateFormated = format(props.startTime, "HH:mm");
-  const [endDateFormated, setEndDateFormat] = createSignal(
-    format(props.endTime, "HH:mm"),
-  );
-  const [showHistory, setShowHistory] = createSignal(false);
 
-  createEffect(() => {
-    setEndDateFormat(format(props.endTime, "HH:mm"));
-  });
+  const [showHistory, setShowHistory] = createSignal(false);
 
   const totalTime = createMemo(() => {
     const totalTime =
@@ -38,25 +31,36 @@ const TrackingHistory = (props: DTO) => {
   return (
     <div>
       <div
-        class={`bg-white h-14 flex  ${props.tracking_history.length > 1 ? "rounded-t-lg" : "rounded-lg"} shadow-md  py-3 px-4`}
+        class={`${props.tracking ? "bg-primary" : "bg-white"} h-14 flex  ${showHistory() ? "rounded-t-lg" : "rounded-lg"} shadow-md  py-3 px-4`}
       >
-        <p class="flex-1 text-lg text-primary">{props.description}</p>
-        <div class="flex">
-          <p class="border-dashed px-2 border-black border-l- border-r">
-            {startDateFormated}-{endDateFormated()}
+        <p
+          class={`${props.tracking ? "text-white" : "text-primary"} flex-1 text-lg `}
+        >
+          {props.description}
+        </p>
+        <div class="flex items-center">
+          <p
+            class={`${props.tracking ? "text-white" : "text-primary"} border-dashed px-2 border-black border-r`}
+          >
+            {totalTime()}
           </p>
-          <p class="border-dashed px-2 border-black border-r">{totalTime()}</p>
         </div>
         <Show
           when={props.tracking}
           fallback={
             <button type="button" onClick={() => startTracking(props.id)}>
-              <BsPlay class="text-primary" size={32} />
+              <BsPlay
+                class={`${props.tracking ? "text-white" : "text-primary"}`}
+                size={32}
+              />
             </button>
           }
         >
           <button type="button" onClick={stopTracking}>
-            <BsStop class="text-primary" size={32} />
+            <BsStop
+              class={`${props.tracking ? "text-white" : "text-primary"}`}
+              size={32}
+            />
           </button>
         </Show>
         <button
@@ -64,7 +68,10 @@ const TrackingHistory = (props: DTO) => {
           type="button"
           onClick={() => setShowHistory(!showHistory())}
         >
-          <RiArrowsArrowDownSFill class="text-primary" size={32} />
+          <RiArrowsArrowDownSFill
+            class={`${props.tracking ? "text-white" : "text-primary"}`}
+            size={32}
+          />
         </button>
       </div>
       <Show when={showHistory()}>
@@ -79,7 +86,7 @@ const TrackingHistory = (props: DTO) => {
             });
             return (
               <div
-                class={`bg-slate-100 ${index() + 1 === props.tracking_history.length ? "rounded-lg" : ""} h-14 flex  shadow-md  py-3 px-4`}
+                class={`bg-slate-100 ${index() + 1 === props.tracking_history.length ? "rounded-b-lg" : ""} h-14 flex  shadow-md  py-3 px-4`}
               >
                 <p class="flex-1 text-lg text-primary">{history.description}</p>
                 <div class="flex">
